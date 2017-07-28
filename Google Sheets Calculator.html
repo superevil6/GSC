@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Google Sheets Calculator Proof of Concept</title>
+  <meta charset="utf-8" />
+</head>
+<style>
+div[id^='column']{
+}
+
+</style>
+<body>
+  <p>Google Sheets Calculator Proof of Concept</p>
+  <!--Add buttons to initiate auth sequence and sign out-->
+  <div>
+    <button id="authorize-button" style="display: none;">Authorize</button>
+    <button id="signout-button" style="display: none;">Sign Out</button> Column: <input value="A" type="text" id="columnLetter"
+      onchange="refreshCells()" /> Original value: <input id="originalValue" type="text" />
+    <select id="mathType">
+      <option value="Add"> Add </option>
+      <option value="Subtract"> Subtract </option>
+      <option value="Multiply"> Multiply </option>
+      <option value="Division"> Division </option>
+      <option value="Square Root"> Square Root </option>
+      <option value="Power Of"> ^ </option>
+      <option value="Google Finance">Google Finance</option>
+    </select> this value: <input id="valueToCompute" type="text" />
+    <br/>
+    <button type="button" onclick="alterCell()">Compute</button>
+    <br/> Result: <input type="text" id="result" />
+    <br/>
+  </div>
+
+  <div id="columnParent">
+  </div>
+
+  <pre id="content"></pre>
+
+  <script type="text/javascript">
+    // Client ID and API key from the Developer Console
+    var CLIENT_ID = '458700823337-cr4ektitets0uhfj1tfl4ua8e4ak3rb5.apps.googleusercontent.com';
+
+    // Array of API discovery doc URLs for APIs used by the quickstart
+    var DISCOVERY_DOCS = ["https://sheets.googleapis.com/$discovery/rest?version=v4"];
+
+    // Authorization scopes required by the API; multiple scopes can be
+    // included, separated by spaces.
+    var SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+
+    var authorizeButton = document.getElementById('authorize-button');
+    var signoutButton = document.getElementById('signout-button');
+    //var addElement = document.getElementById('add-button');
+    var newSheet = document.getElementById('new-button');
+
+    /**
+     *  On load, called to load the auth2 library and API client library.
+     */
+    function handleClientLoad() {
+      gapi.load('client:auth2', initClient);
+    }
+
+    /**
+     *  Initializes the API client library and sets up sign-in state
+     *  listeners.
+     */
+    function initClient() {
+      gapi.client.init({
+        discoveryDocs: DISCOVERY_DOCS,
+        clientId: CLIENT_ID,
+        scope: SCOPES
+      }).then(function () {
+        // Listen for sign-in state changes.
+        gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+
+        // Handle the initial sign-in state.
+        updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+        authorizeButton.onclick = handleAuthClick;
+        //newSheet.onclick = createNewSpreadsheet;
+        signoutButton.onclick = handleSignoutClick;
+      });
+    }
+
+    /**
+     *  Called when the signed in status changes, to update the UI
+     *  appropriately. After a sign-in, the API is called.
+     */
+    function updateSigninStatus(isSignedIn) {
+      if (isSignedIn) {
+        authorizeButton.style.display = 'none';
+        signoutButton.style.display = 'block';
+        //newSheet.style.display = 'block';
+        refreshCells(); //This calls the already stored cell values.
+        //alterCell();
+
+      } else {
+        authorizeButton.style.display = 'block';
+        signoutButton.style.display = 'none';
+      }
+    }
+
+    /**
+     *  Sign in the user upon button click.
+     */
+    function handleAuthClick(event) {
+      gapi.auth2.getAuthInstance().signIn();
+    }
+
+    /**
+     *  Sign out the user upon button click.
+     */
+    function handleSignoutClick(event) {
+      gapi.auth2.getAuthInstance().signOut();
+    }
+
+    /**
+     * Append a pre element to the body containing the given message
+     * as its text node. Used to display the results of the API call.
+     *
+     * @param {string} message Text to be placed in pre element.
+     */
+    function assignValue(id, message) {
+      var pre = document.getElementById(id).value = message;
+      //var textContent = document.createTextNode(message + '\n');
+      //pre.appendChild(textContent);
+    }
+
+    /**
+     * Print the names and majors of students in a sample spreadsheet:
+     * https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
+     */
+    function getCells(rangeId, elementId, singleCell) { //inputRange is the value returned form the spreadsheet, displayId is the html element to display it at.
+      gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: '13_cISxvrM-IaaMfg5SEHefNsuI6F4n5UBhpXAhOLqfw',
+        range: rangeId,
+      }).then(function (response) {
+        var result = response.result;
+        //The response is in the format of a JSON, so you'll need to specify which index you'd like to use.
+        if (singleCell) {
+          if (result.values !== undefined) {
+            assignValue(elementId, result.values[0]);
+          } else {
+            //this is to prevent an undefined/no length error, and so that there aren't null values on the page.
+            assignValue(elementId, 0);
+          }
+        } else {
+          if (result.values !== undefined) {
+            document.getElementById(elementId).innerHTML += "<br/>";
+            for (i = 0; i < result.values.length; i++) {
+              document.getElementById(elementId).innerHTML += result.values[i] + "<br/>";
+            }
+          } else {
+            document.getElementById(elementId).innerHTML += "<br/>No values";
+            // for (i = 0; i < result.values.length; i++) {
+            //   document.getElementById(elementId).innerHTML += 0 + "<br/>";
+            // }
+          }
+        }
+      })
+    }
+
+    function clearCells(column) {
+      document.getElementById("column " + column).innerHTML = "column " + column;
+    }
+
+    function refreshCells() {
+      //this is a temp solution until I can find a way to actively keep the document refreshing.
+      var column = "column " + document.getElementById("columnLetter").value.toUpperCase();
+      var columnLetter = document.getElementById("columnLetter").value.toUpperCase();
+      if (!/[A-Z]/.test(columnLetter) || columnLetter.length > 1) {
+        console.log("Invalid letter");
+      }
+      //clearCells(column);
+      else {
+        console.log(column);
+        getCells(columnLetter + "1", "originalValue", true);
+        getCells(columnLetter + "2", "valueToCompute", true);
+        getCells(columnLetter + "3", "result", true);
+        var doesColumnExist = document.getElementById(column);
+        if (doesColumnExist === null) {
+          createNewColumn(column);
+        }
+        getCells(columnLetter + "1:" + columnLetter + "3", column, false);
+      }
+
+    }
+
+
+    function alterCell() {
+      var cell1 = document.getElementById("originalValue").value;
+      var cell2 = document.getElementById("valueToCompute").value;
+      var choice = document.getElementById("mathType").value;
+      var column = document.getElementById("columnLetter").value.toUpperCase();
+      clearCells(column);
+      if (choice == "Add") {
+        value = "=" + column + "1+" + column + "2";
+      }
+      if (choice == "Subtract") {
+        value = "=" + column + "1-" + column + "2";
+      }
+      if (choice == "Multiply") {
+        value = "=" + column + "1*" + column + "2";
+      }
+      if (choice == "Division") {
+        value = "=" + column + "1/" + column + "2";
+      }
+      if (choice == "Square Root") {
+        value = "=SQRT(" + column + "1)";
+        cell2 = " ";
+      }
+      if (choice == "Power Of") {
+        value = "=POWER(" + column + "1, " + column + "2)";
+      }
+      if (choice == "Google Finance") {
+        cell2 = "price";
+        value = "=GoogleFinance(" + column + "1, " + column + "2)";
+      }
+      gapi.client.sheets.spreadsheets.values.update({
+          "valueInputOption": "USER_ENTERED",
+          "range": "Sheet1!" + column + "1:" + column + "3",
+          "majorDimension": "COLUMNS",
+          "spreadsheetId": "13_cISxvrM-IaaMfg5SEHefNsuI6F4n5UBhpXAhOLqfw",
+          "values": [
+            [
+              cell1,
+              cell2,
+              value
+            ]
+          ]
+        }
+
+      ).then(function (response) {
+        console.log(response.result);
+        refreshCells();
+      })
+    }
+
+    function createNewColumn(column) {
+      var newColumn = document.createElement("p");
+      newColumn.id = column;
+      newColumn.innerHTML = column;
+      var parent = document.getElementById("columnParent");
+      parent.insertBefore(newColumn, parent.lastChild);
+    }
+  </script>
+
+  <script async defer src="https://apis.google.com/js/api.js" onload="this.onload=function(){};handleClientLoad()" onreadystatechange="if (this.readyState === 'complete') this.onload()">
+  </script>
+</body>
+
+</html>
